@@ -56,6 +56,7 @@ class S3Agency(Agency):
 
     def tx_asset_src(self, raw_asset, **kwargs):
         tx_type = kwargs.get("tx_type")
+        target = kwargs.get("target")
         asset = {
             "src_id": raw_asset[self.setting["src_metadata"][tx_type]["src_id"]],
             "created_at": raw_asset[
@@ -88,7 +89,7 @@ class S3Agency(Agency):
 
                 asset.update(
                     {
-                        "data": self.transform_data(raw_asset, self.map.get(tx_type)),
+                        "data": self.transform_data(raw_asset, self.map[target].get(tx_type)),
                     }
                 )
             else:
