@@ -18,6 +18,8 @@ class S3Agency(Agency):
         self.s3_connector = S3Connector(logger, **setting)
         self.datawald = DatawaldConnector(logger, **setting)
         Agency.__init__(self, logger, datawald=self.datawald)
+        if setting.get("tx_type"):
+            Agency.tx_type = setting.get("tx_type")
 
         self.map = setting.get("TXMAP", {})
 
