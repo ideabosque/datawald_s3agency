@@ -23,95 +23,87 @@ class S3Agency(Agency):
 
         self.map = setting.get("TXMAP", {})
 
-    def tx_assets_src(self, **kwargs):
+    def tx_entities_src(self, **kwargs):
         try:
             if kwargs.get("bucket") and kwargs.get("key"):
-                bucket = kwargs.get("bucket")
-                key = kwargs.get("key")
-                raw_assets = self.s3_connector.get_rows(bucket, key)
+                if (
+                    kwargs.get("key").find(".csv") != -1
+                    or kwargs.get("key").find(".xlsx") != -1
+                ):
+                    raw_entities = self.s3_connector.get_rows(
+                        kwargs.get("bucket"), kwargs.get("key")
+                    )
+                elif kwargs.get("key").find(".pdf") != -1:
+                    raw_entities = self.s3_connector.get_data_by_docparser(
+                        kwargs.get("bucket"),
+                        kwargs.get("key"),
+                        kwargs.get("parser_name"),
+                    )
+                else:
+                    raise Exception(f"{kwargs.get('key')} is not supported.")
             else:
-                raw_assets = self.s3_connector.get_objects(
+                raw_entities = self.s3_connector.get_objects(
                     kwargs.get("tx_type"), **kwargs
                 )
 
-            if len(raw_assets) == 0:
-                return raw_assets
-
-            if kwargs.get("tx_type") not in ("product", "inventory"):
-                raise Exception(f"{kwargs.get('tx_type')} is not supported.")
+            if len(raw_entities) == 0:
+                return raw_entities
 
             if kwargs.get("tx_type") == "product":
                 kwargs.update({"metadatas": self.get_product_metadatas(**kwargs)})
 
-            assets = list(
+            entities = list(
                 map(
-                    lambda raw_asset: self.tx_asset_src(raw_asset, **kwargs),
-                    raw_assets,
+                    lambda raw_entity: self.tx_entity_src(raw_entity, **kwargs),
+                    raw_entities,
                 )
             )
-            return assets
+            return entities
         except Exception:
             self.logger.info(kwargs)
             log = traceback.format_exc()
             self.logger.exception(log)
             raise
 
-    def tx_asset_src(self, raw_asset, **kwargs):
+    def tx_entity_src(self, raw_entity, **kwargs):
         tx_type = kwargs.get("tx_type")
         target = kwargs.get("target")
-        asset = {
-            "src_id": raw_asset[self.setting["src_metadata"][tx_type]["src_id"]],
-            "created_at": raw_asset[
+        entity = {
+            "src_id": raw_entity[self.setting["src_metadata"][tx_type]["src_id"]],
+            "created_at": raw_entity[
                 self.setting["src_metadata"][tx_type]["created_at"]
             ],
-            "updated_at": raw_asset[
+            "updated_at": raw_entity[
                 self.setting["src_metadata"][tx_type]["updated_at"]
             ],
         }
 
         try:
+            raw_entity.update(kwargs)
             if tx_type == "product":
                 metadatas = kwargs.get("metadatas")
-                data = self.transform_data(raw_asset, metadatas)
-                asset.update({"data": data})
-            elif tx_type == "inventory":
-                raw_asset.update(kwargs)
-                if len([key for key in raw_asset.keys() if key.find("|") != -1]) > 0:
-                    raw_asset.update(
-                        {
-                            "inventory": self.tx_inventory_src(
-                                {
-                                    k: v
-                                    for k, v in raw_asset.items()
-                                    if k.find("|") != -1
-                                }
-                            )
-                        }
-                    )
-
-                asset.update(
+                data = self.transform_data(raw_entity, metadatas)
+                entity.update({"data": data})
+            else:
+                entity.update(
                     {
-                        "data": self.transform_data(raw_asset, self.map[target].get(tx_type)),
+                        "data": self.transform_data(
+                            raw_entity, self.map[target].get(tx_type)
+                        ),
                     }
                 )
-            else:
-                raise Exception(f"{tx_type} is not supported.")
 
         except Exception:
             log = traceback.format_exc()
-            asset.update({"tx_status": "F", "tx_note": log})
+            entity.update({"tx_status": "F", "tx_note": log})
             self.logger.exception(log)
-        return asset
+        return entity
 
-    def tx_inventory_src(self, raw_inventory):
-        return [
-            dict(
-                {"warehouse": warehouse},
-                **{
-                    k.split("|")[1]: v
-                    for k, v in raw_inventory.items()
-                    if k.find(warehouse) != -1
-                },
-            )
-            for warehouse in set([key.split("|")[0] for key in raw_inventory.keys()])
-        ]
+    def tx_transactions_src(self, **kwargs):
+        return self.tx_entities_src(**kwargs)
+
+    def tx_persons_src(self, **kwargs):
+        return self.tx_entities_src(**kwargs)
+
+    def tx_assets_src(self, **kwargs):
+        return self.tx_entities_src(**kwargs)
