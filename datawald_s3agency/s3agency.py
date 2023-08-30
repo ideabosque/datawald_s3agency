@@ -23,6 +23,10 @@ class S3Agency(Agency):
 
         self.map = setting.get("TXMAP", {})
 
+    def get_parser_name(self, **kwargs):
+        id = kwargs.get(self.setting["parser_name"]["id"][kwargs["tx_type"]])
+        return self.setting["parser_name"]["data"][id]
+
     def tx_entities_src(self, **kwargs):
         try:
             if kwargs.get("bucket") and kwargs.get("key"):
@@ -34,10 +38,11 @@ class S3Agency(Agency):
                         kwargs.get("bucket"), kwargs.get("key")
                     )
                 elif kwargs.get("key").find(".pdf") != -1:
+                    parser_name = self.get_parser_name(**kwargs)
                     raw_entities = self.s3_connector.get_data_by_docparser(
                         kwargs.get("bucket"),
                         kwargs.get("key"),
-                        kwargs.get("parser_name"),
+                        parser_name,
                     )
                 else:
                     raise Exception(f"{kwargs.get('key')} is not supported.")
