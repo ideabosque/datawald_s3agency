@@ -30,10 +30,11 @@ class S3Agency(Agency):
     def tx_entities_src(self, **kwargs):
         try:
             if kwargs.get("bucket") and kwargs.get("key"):
-                if (
-                    kwargs.get("key").find(".csv") != -1
-                    or kwargs.get("key").find(".xlsx") != -1
-                ):
+                if kwargs.get("key").find(".csv") != -1:
+                    raw_entities = self.s3_connector.get_rows(
+                        kwargs.get("bucket"), kwargs.get("key"), '\n'
+                    )
+                elif kwargs.get("key").find(".xlsx") != -1:
                     raw_entities = self.s3_connector.get_rows(
                         kwargs.get("bucket"), kwargs.get("key")
                     )
